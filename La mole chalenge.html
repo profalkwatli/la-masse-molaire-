@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Comparaison des masses molaires</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: Arial, sans-serif; background: #f4f4f9; margin:0; padding:0; color:#333; }
+h1 { text-align: center; margin: 20px; }
+.main-container { display:flex; justify-content:space-around; align-items:flex-start; margin:20px; }
+.observation, .calcul { flex:1; padding:15px; }
+.container { display:flex; justify-content:center; gap:60px; margin-top:10px; }
+.box { width:220px; height:220px; border:2px solid #555; border-radius:10px; position:relative; background:white; overflow:hidden; }
+.label { margin-top:10px; font-weight:bold; font-size:14px; line-height:1.3em; text-align:center; }
+.bille { position:absolute; opacity:0.85; animation:pop 0.5s ease; }
+@keyframes pop { from{transform:scale(0); opacity:0;} to{transform:scale(1); opacity:0.85;} }
+.balance { position:relative; width:400px; height:200px; margin:40px auto; }
+.support { width:20px; height:100px; background:#444; position:absolute; top:40px; left:190px; }
+.barre { width:300px; height:8px; background:#444; position:absolute; top:80px; left:50px; transform-origin:center; transition: transform 2s ease; }
+.plateau { width:100px; height:100px; background:#ccc; border-radius:50%; border:3px solid #666; position:absolute; top:60px; transition: top 2s ease; }
+#plateauG { left:-30px; }
+#plateauD { right:-30px; }
+button { margin:5px; padding:10px 20px; font-size:16px; cursor:pointer; border:none; border-radius:8px; background:#4a90e2; color:white; transition: background 0.3s; }
+button:hover { background:#357ab7; }
+.calcul { background:#eef; border-radius:10px; }
+.calcul h2 { text-align:center; }
+input { width:80px; padding:5px; margin:5px; text-align:center; }
+table { width:100%; border-collapse:collapse; margin-top:15px; }
+th, td { border:1px solid #555; padding:5px; text-align:center; }
+th { background:#ddd; }
+.correct { background-color: #c8e6c9; }
+.incorrect { background-color: #ffcdd2; }
+#NA { text-align:center; font-size:18px; margin-top:10px; font-weight:bold; color:darkblue; }
+ul { margin:0 0 10px 20px; }
+#challenge { font-weight:bold; color:red; }
+#badge { font-size:18px; color:green; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<h1>⚖️ Comparaison des masses molaires</h1>
+
+<div id="NA">Nombre d’Avogadro N<sub>A</sub> = 6,022 × 10<sup>23</sup> particules/mol</div>
+
+<div class="main-container">
+
+  <!-- Observation -->
+  <div class="observation">
+    <p><b>Observation visuelle</b></p>
+    <div class="container">
+      <div>
+        <select id="elementG"></select>
+        <div class="box" id="boxG"></div>
+        <div class="label" id="labelG"></div>
+      </div>
+      <div>
+        <select id="elementD"></select>
+        <div class="box" id="boxD"></div>
+        <div class="label" id="labelD"></div>
+      </div>
+    </div>
+
+    <div class="balance">
+      <div class="support"></div>
+      <div class="barre" id="barre"></div>
+      <div class="plateau" id="plateauG"></div>
+      <div class="plateau" id="plateauD"></div>
+    </div>
+
+    <button onclick="comparer()">⚖️ Comparer</button>
+    <button onclick="restart()">🔄 Restart</button>
+
+    <p id="resultat"></p>
+  </div>
+
+  <!-- Calcul -->
+  <div class="calcul" id="calcZone" style="display:none;">
+    <h2>🧮 Comparaison après observation</h2>
+
+    <p><b>Consignes pour l’élève :</b></p>
+    <ul>
+      <li>Observe attentivement la balance et les boîtes de particules.</li>
+      <li>Détermine quel élément est le plus lourd pour 1 mole.</li>
+      <li>Calcule le rapport : <b>masse de l’élément le plus lourd ÷ masse de l’élément le plus léger</b>.</li>
+      <li>Arrondis ton résultat à une décimale et entre-le dans la case ci-dessous.</li>
+      <li>Vérifie ton calcul en cliquant sur "Vérifier".</li>
+      <li>Après vérification, le "Rapport attendu" sera affiché.</li>
+      <li>Réalise au moins 10 essais pour compléter le tableau.</li>
+      <li id="challenge">⏰ Temps restant pour finir 10 essais : <span id="time">120</span> s</li>
+    </ul>
+
+    <p>👉 À toi de calculer :</p>
+    <input type="number" id="reponse" step="0.1" placeholder="Ton résultat">
+    <button onclick="verifier()">Vérifier</button>
+    <p id="feedback"></p>
+    <p id="theorie"></p>
+    <p id="attemptCounter">✅ Essais : 0 / 10 minimum recommandés</p>
+    <p id="badge"></p>
+
+    <h3>Résultats validés</h3>
+    <table id="tableau">
+      <tr><th>Élément A</th><th>Élément B</th><th>Rapport attendu</th><th>Valeur calculée par l'élève</th></tr>
+    </table>
+
+    <canvas id="chart" width="400" height="200"></canvas>
+  </div>
+</div>
+
+<script>
+const elements = [
+  {nom:"Hydrogène", sym:"H", Z:1, masse:1},
+  {nom:"Carbone", sym:"C", Z:6, masse:12},
+  {nom:"Azote", sym:"N", Z:7, masse:14},
+  {nom:"Oxygène", sym:"O", Z:8, masse:16},
+  {nom:"Sodium", sym:"Na", Z:11, masse:23},
+  {nom:"Magnésium", sym:"Mg", Z:12, masse:24},
+  {nom:"Aluminium", sym:"Al", Z:13, masse:27},
+  {nom:"Silicium", sym:"Si", Z:14, masse:28},
+  {nom:"Phosphore", sym:"P", Z:15, masse:31},
+  {nom:"Soufre", sym:"S", Z:16, masse:32},
+  {nom:"Chlore", sym:"Cl", Z:17, masse:35.5},
+  {nom:"Potassium", sym:"K", Z:19, masse:39},
+  {nom:"Calcium", sym:"Ca", Z:20, masse:40},
+  {nom:"Fer", sym:"Fe", Z:26, masse:56},
+  {nom:"Cuivre", sym:"Cu", Z:29, masse:63.5}
+];
+
+const couleurs = ["skyblue","orange","limegreen","violet","red","gold","pink"];
+const formes = ["50%","0%"];
+const selectG = document.getElementById("elementG");
+const selectD = document.getElementById("elementD");
+let rapportTheorique = null;
+let dernierCouple = null;
+let essais = 0;
+let incorrectStreak = 0;
+let chartData = {labels:[], theoretical:[], student:[]};
+let timer = 120; // 2 minutes
+let interval;
+
+// Remplissage des select
+elements.forEach((el, i) => {
+  [selectG, selectD].forEach(sel => {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `${el.sym} - ${el.nom}`;
+    sel.appendChild(opt);
+  });
+});
+
+// Fonction pour remplir les boîtes
+function remplirBoite(id, element){
+  const box = document.getElementById(id);
+  box.innerHTML="";
+  const largeur = box.clientWidth;
+  const hauteur = box.clientHeight;
+  const taille = Math.max(8, Math.min(25, element.masse/3));
+  const couleur = couleurs[Math.floor(Math.random()*couleurs.length)];
+  const forme = formes[Math.floor(Math.random()*formes.length)];
+
+  for(let i=0;i<35;i++){
+    const bille = document.createElement("div");
+    bille.className="bille";
+    bille.style.width=taille+"px";
+    bille.style.height=taille+"px";
+    bille.style.background=couleur;
+    bille.style.borderRadius=forme;
+    bille.style.left=Math.random()*(largeur-taille)+"px";
+    bille.style.top=Math.random()*(hauteur-taille)+"px";
+    box.appendChild(bille);
+  }
+
+  const naText = document.createElement("div");
+  naText.style.position="absolute";
+  naText.style.bottom="5px";
+  naText.style.width="100%";
+  naText.style.textAlign="center";
+  naText.style.fontSize="12px";
+  naText.style.fontWeight="bold";
+  naText.textContent="Nₐ ≈ 6,022 × 10²³";
+  box.appendChild(naText);
+}
+
+// Fonction randomiser et comparer
+function comparer(){
+  const indices = [...Array(elements.length).keys()];
+  let idxG = indices[Math.floor(Math.random()*indices.length)];
+  let idxD;
+  do {
+    idxD = indices[Math.floor(Math.random()*indices.length)];
+  } while(idxD === idxG);
+
+  selectG.value = idxG;
+  selectD.value = idxD;
+
+  const eG = elements[idxG];
+  const eD = elements[idxD];
+
+  remplirBoite("boxG", eG);
+  remplirBoite("boxD", eD);
+
+  document.getElementById("labelG").innerHTML = `${eG.nom} (${eG.sym})<br>Z=${eG.Z} | A≈${eG.masse}<br>1 mole=${eG.masse} g`;
+  document.getElementById("labelD").innerHTML = `${eD.nom} (${eD.sym})<br>Z=${eD.Z} | A≈${eD.masse}<br>1 mole=${eD.masse} g`;
+
+  const barre = document.getElementById("barre");
+  const platG = document.getElementById("plateauG");
+  const platD = document.getElementById("plateauD");
+  const res = document.getElementById("resultat");
+  const calcZone = document.getElementById("calcZone");
+  const theorie = document.getElementById("theorie");
+
+  if(eG.masse > eD.masse){
+    barre.style.transform="rotate(-15deg)";
+    platG.style.top="100px"; platD.style.top="20px";
+    res.textContent=`➡️ 1 mole de ${eG.sym} est plus lourde que 1 mole de ${eD.sym}`;
+    rapportTheorique=(eG.masse/eD.masse).toFixed(1);
+    dernierCouple=[eG.sym,eD.sym];
+    calcZone.style.display="block";
+  } else if(eG.masse < eD.masse){
+    barre.style.transform="rotate(15deg)";
+    platG.style.top="20px"; platD.style.top="100px";
+    res.textContent=`➡️ 1 mole de ${eD.sym} est plus lourde que 1 mole de ${eG.sym}`;
+    rapportTheorique=(eD.masse/eG.masse).toFixed(1);
+    dernierCouple=[eD.sym,eG.sym];
+    calcZone.style.display="block";
+  } else {
+    barre.style.transform="rotate(0deg)";
+    platG.style.top="60px"; platD.style.top="60px";
+    res.textContent="⚖️ Les deux moles ont la même masse";
+    rapportTheorique=null;
+    dernierCouple=null;
+    calcZone.style.display="none";
+  }
+
+  document.getElementById("reponse").value="";
+  document.getElementById("feedback").textContent="";
+  theorie.textContent="";
+}
+
+// Vérification de la réponse
+function verifier(){
+  const rep = parseFloat(document.getElementById("reponse").value);
+  const fb = document.getElementById("feedback");
+  const theorie = document.getElementById("theorie");
+
+  if(rapportTheorique===null){
+    fb.textContent="⚠️ Les masses sont identiques, rien à calculer.";
+    fb.style.color="orange";
+    return;
+  }
+
+  if(isNaN(rep)){
+    fb.textContent="❌ Entre un nombre !";
+    fb.style.color="red";
+    return;
+  }
+
+  theorie.innerHTML=`Rapport attendu = <b>${rapportTheorique}</b>`;
+
+  const correct = Math.abs(rep-rapportTheorique)<0.2;
+
+  fb.textContent = correct ? "✅ Bravo, ton calcul est correct !" : "❌ Pas tout à fait... Essaie encore.";
+  fb.style.color = correct ? "green" : "red";
+
+  if(!correct){
+    incorrectStreak++;
+    if(incorrectStreak >= 2){
+      fb.textContent += " 💡 Indice : Regarde la balance, lequel est plus lourd ?";
+    }
+  } else {
+    incorrectStreak = 0;
+  }
+
+  if(dernierCouple){
+    const tableau = document.getElementById("tableau");
+    const row = tableau.insertRow();
+    row.insertCell().textContent = dernierCouple[0];
+    row.insertCell().textContent = dernierCouple[1];
+    row.insertCell().textContent = rapportTheorique;
+    row.insertCell().textContent = rep;
+    row.cells[3].className = correct ? "correct" : "incorrect";
+
+    // Mettre à jour le graphique
+    chartData.labels.push(`${dernierCouple[0]}/${dernierCouple[1]}`);
+    chartData.theoretical.push(parseFloat(rapportTheorique));
+    chartData.student.push(rep);
+    updateChart();
+
+    essais++;
+    document.getElementById("attemptCounter").textContent = `✅ Essais : ${essais} / 10 minimum recommandés`;
+
+    if(essais >= 10){
+      document.getElementById("badge").textContent="🏆 Félicitations ! 10 essais validés.";
+    }
+  }
+}
+
+// Chart.js initialisation
+const ctx = document.getElementById('chart').getContext('2d');
+let chart = new Chart(ctx, {
+  type: 'bar',
+  data: { labels: [], datasets: [
+    { label:'Valeur théorique', data:[], backgroundColor:'rgba(54, 162, 235, 0.5)'},
+    { label:'Valeur élève', data:[], backgroundColor:'rgba(255, 99, 132, 0.5)'}
+  ]},
+  options:{ responsive:true, scales:{ y:{ beginAtZero:true } } }
+});
+
+function updateChart(){
+  chart.data.labels = chartData.labels;
+  chart.data.datasets[0].data = chartData.theoretical;
+  chart.data.datasets[1].data = chartData.student;
+  chart.update();
+}
+
+// Restart
+function restart(){
+  document.getElementById("barre").style.transform="rotate(0deg)";
+  document.getElementById("plateauG").style.top="60px";
+  document.getElementById("plateauD").style.top="60px";
+  document.getElementById("resultat").textContent="";
+  document.getElementById("boxG").innerHTML="";
+  document.getElementById("boxD").innerHTML="";
+  document.getElementById("labelG").innerHTML="";
+  document.getElementById("labelD").innerHTML="";
+  document.getElementById("calcZone").style.display="none";
+  document.getElementById("feedback").textContent="";
+  document.getElementById("reponse").value="";
+  document.getElementById("theorie").textContent="";
+  document.getElementById("attemptCounter").textContent=`✅ Essais : 0 / 10 minimum recommandés`;
+  document.getElementById("badge").textContent="";
+  chartData={labels:[], theoretical:[], student:[]};
+  updateChart();
+  essais=0;
+  incorrectStreak=0;
+  timer=120;
+  clearInterval(interval);
+  startTimer();
+}
+
+// Timer mode challenge
+function startTimer(){
+  interval = setInterval(()=>{
+    if(timer<=0){ clearInterval(interval); document.getElementById("challenge").textContent="⏰ Temps écoulé !"; return; }
+    document.getElementById("time").textContent=timer;
+    timer--;
+  },1000);
+}
+
+// Lancement initial
+comparer();
+startTimer();
+</script>
+
+</body>
+</html>
